@@ -2,37 +2,33 @@ library(vroom)
 library(tidymodels)
 library(tidyverse)
 library(embed)
+library(discrim)
+library(naivebayes)
 
-train = vroom("train.csv")
-test = vroom("test.csv")
+train = vroom("AmazonEmployeeAccess/train.csv")
+test = vroom("AmazonEmployeeAccess/test.csv")
 train$ACTION = as.factor(train$ACTION)
 
 my_recipe = recipe(ACTION ~ ., data = train) |> 
   step_mutate_at(all_numeric_predictors(), fn = factor) |> 
-  step_other(all_nominal_predictors(), threshold = 0.1) |> 
-  step_lencode_mixed(all_nominal_predictors(), outcome = vars(ACTION)) |> 
-  step_zv() |> 
-  step_normalize(all_numeric_predictors())
+  step_other(all_nominal_predictors(), threshold = 0.001) |> 
+  step_lencode_mixed(all_nominal_predictors(), outcome = vars(ACTION))
 
-#prep = prep(my_recipe)
-#baked = bake(prep, new_data = train)
-#baked
+bayes_model = naive_Bayes(Laplace=tune(), smoothness=tune()) |> 
+  set_mode("classification") |> 
+  set_engine("naivebayes")
 
-# Penalized Regression
-logRegModel = logistic_reg(mixture = tune(), penalty = tune()) |> 
-  set_engine("glmnet")
-
-wf = workflow() |> 
+nb_wf = workflow() |> 
   add_recipe(my_recipe) |> 
-  add_model(logRegModel)
+  add_model(bayes_model)
 
-tuning_grid = grid_regular(penalty(),
-                           mixture(),
+tuning_grid = grid_regular(Laplace(),
+                           smoothness(),
                            levels = 5)
 
 folds = vfold_cv(train, v = 10, repeats = 1)
 
-CV_results = wf |> 
+CV_results = nb_wf |> 
   tune_grid(resamples = folds,
             grid = tuning_grid,
             metrics = metric_set(roc_auc))
@@ -40,7 +36,7 @@ CV_results = wf |>
 bestTune = CV_results |> 
   select_best()
 
-final_wf = wf |> 
+final_wf = nb_wf |> 
   finalize_workflow(bestTune) |> 
   fit(data = train)
 
@@ -48,14 +44,12 @@ predictions = predict(final_wf,
                       new_data = test,
                       type = "prob")
 
-#predictions
-
 kaggle_submission = bind_cols(test["id"], predictions[".pred_1"]) |> 
   rename("Id" = id, "Action" = .pred_1)
 #kaggle_submission
 
 vroom_write(x = kaggle_submission, 
-            file = "logregpred2.csv",
+            file = "AmazonEmployeeAccess/bayespred.csv",
             delim = ",")
 
 

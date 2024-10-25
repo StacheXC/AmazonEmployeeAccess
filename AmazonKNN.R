@@ -3,32 +3,32 @@ library(tidymodels)
 library(tidyverse)
 library(embed)
 
-train = vroom("train.csv")
-test = vroom("test.csv")
+train = vroom("AmazonEmployeeAccess/train.csv")
+test = vroom("AmazonEmployeeAccess/test.csv")
 train$ACTION = as.factor(train$ACTION)
 
 my_recipe = recipe(ACTION ~ ., data = train) |> 
   step_mutate_at(all_numeric_predictors(), fn = factor) |> 
-  step_other(all_nominal_predictors(), threshold = 0.1) |> 
+  step_other(all_nominal_predictors(), threshold = 0.001) |> 
   step_lencode_mixed(all_nominal_predictors(), outcome = vars(ACTION)) |> 
-  step_zv() |> 
+  step_zv(all_predictors()) |> 
   step_normalize(all_numeric_predictors())
 
-#prep = prep(my_recipe)
-#baked = bake(prep, new_data = train)
-#baked
+prep = prep(my_recipe)
+baked = bake(prep, new_data = train)
+baked
 
 # Penalized Regression
-logRegModel = logistic_reg(mixture = tune(), penalty = tune()) |> 
-  set_engine("glmnet")
+knn_model = nearest_neighbor(neighbors = tune()) |> 
+  set_mode("classification") |> 
+  set_engine("kknn")
 
 wf = workflow() |> 
   add_recipe(my_recipe) |> 
-  add_model(logRegModel)
+  add_model(knn_model)
 
-tuning_grid = grid_regular(penalty(),
-                           mixture(),
-                           levels = 5)
+tuning_grid = grid_regular(neighbors(),
+                           levels = 10)
 
 folds = vfold_cv(train, v = 10, repeats = 1)
 
@@ -55,7 +55,7 @@ kaggle_submission = bind_cols(test["id"], predictions[".pred_1"]) |>
 #kaggle_submission
 
 vroom_write(x = kaggle_submission, 
-            file = "logregpred2.csv",
+            file = "AmazonEmployeeAccess/knnpred.csv",
             delim = ",")
 
 
