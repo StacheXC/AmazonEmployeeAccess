@@ -1,6 +1,7 @@
 library(vroom)
 library(tidymodels)
 library(embed)
+library(xgboost)
 
 train = vroom("AmazonEmployeeAccess/train.csv")
 test = vroom("AmazonEmployeeAccess/test.csv")
@@ -8,21 +9,20 @@ train$ACTION = as.factor(train$ACTION)
 
 my_recipe = recipe(ACTION ~ ., data = train) |> 
   step_mutate_at(all_numeric_predictors(), fn = factor) |> 
-  step_other(all_nominal_predictors(), threshold = 0.0001) |> 
+  step_other(all_nominal_predictors(), threshold = 0.001) |> 
   step_lencode_mixed(all_nominal_predictors(), outcome = vars(ACTION))
-  
 
-rf_model = rand_forest(mtry = tune(),
-                       min_n = tune(),
-                       trees = 500) |> 
+boost_model = boost_tree(mtry = tune(),
+                         min_n = tune(),
+                         trees = 50) |> 
   set_mode("classification") |> 
-  set_engine("ranger")
+  set_engine("xgboost")
 
 wf = workflow() |> 
   add_recipe(my_recipe) |> 
-  add_model(rf_model)
+  add_model(boost_model)
 
-tuning_grid = grid_regular(mtry(range = c(1, 9)),
+tuning_grid = grid_regular(mtry(range = c(1, 8)),
                            min_n(),
                            levels = 5)
 
@@ -48,8 +48,13 @@ kaggle_submission = bind_cols(test["id"], predictions[".pred_1"]) |>
   rename("Id" = id, "Action" = .pred_1)
 
 vroom_write(x = kaggle_submission, 
-            file = "AmazonEmployeeAccess/rfpred.csv",
+            file = "AmazonEmployeeAccess/boostpred.csv",
             delim = ",")
+
+
+
+
+
 
 
 

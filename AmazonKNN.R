@@ -12,7 +12,8 @@ my_recipe = recipe(ACTION ~ ., data = train) |>
   step_other(all_nominal_predictors(), threshold = 0.001) |> 
   step_lencode_mixed(all_nominal_predictors(), outcome = vars(ACTION)) |> 
   step_zv(all_predictors()) |> 
-  step_normalize(all_numeric_predictors())
+  step_normalize(all_predictors()) |> 
+  step_pca(all_predictors(), threshold = 0.8)
 
 prep = prep(my_recipe)
 baked = bake(prep, new_data = train)

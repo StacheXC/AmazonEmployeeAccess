@@ -12,7 +12,9 @@ train$ACTION = as.factor(train$ACTION)
 my_recipe = recipe(ACTION ~ ., data = train) |> 
   step_mutate_at(all_numeric_predictors(), fn = factor) |> 
   step_other(all_nominal_predictors(), threshold = 0.001) |> 
-  step_lencode_mixed(all_nominal_predictors(), outcome = vars(ACTION))
+  step_lencode_mixed(all_nominal_predictors(), outcome = vars(ACTION)) |> 
+  step_normalize(all_predictors()) |> 
+  step_pca(all_predictors(), threshold = 0.8)
 
 bayes_model = naive_Bayes(Laplace=tune(), smoothness=tune()) |> 
   set_mode("classification") |> 
